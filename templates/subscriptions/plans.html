@@ -1,0 +1,300 @@
+<!-- templates/subscriptions/plans.html -->
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}订阅套餐 - WPS办公自动化系统{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2><i class="fas fa-crown me-2"></i>订阅套餐</h2>
+            <p class="text-muted">选择适合您的套餐，享受更多高级功能</p>
+        </div>
+    </div>
+
+    <!-- Current Subscription -->
+    {% if current_subscription %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-user me-2"></i>当前套餐</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <h4>{{ current_subscription.plan.name }}</h4>
+                            <p class="text-muted">{{ current_subscription.plan.description }}</p>
+                            <p>
+                                <strong>状态:</strong> 
+                                <span class="badge bg-{% if current_subscription.is_active %}success{% else %}warning{% endif %}">
+                                    {{ current_subscription.get_status_display }}
+                                </span>
+                            </p>
+                            {% if current_subscription.is_active %}
+                            <p><strong>到期时间:</strong> {{ current_subscription.end_date|date:"Y年m月d日" }}</p>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <div class="progress mb-3">
+                                <div class="progress-bar" role="progressbar" 
+                                     style="width: {{ current_subscription.documents_used_this_month|divisibleby:current_subscription.plan.max_documents_per_month|default:1|multiply:100 }}%">
+                                </div>
+                            </div>
+                            <p class="text-center">
+                                本月已用 {{ current_subscription.documents_used_this_month }} / 
+                                {{ current_subscription.plan.max_documents_per_month }} 个文档
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Subscription Plans -->
+    <div class="row">
+        {% for plan in plans %}
+        <div class="col-md-6 col-lg-3 mb-4">
+            <div class="card pricing-card {% if current_subscription and current_subscription.plan.id == plan.id %}border-primary{% endif %} 
+                        {% if plan.tier == 'professional' %}featured{% endif %} h-100">
+                {% if plan.tier == 'professional' %}
+                <div class="card-header bg-warning text-center text-dark">
+                    <strong>最受欢迎</strong>
+                </div>
+                {% endif %}
+                <div class="card-body text-center">
+                    <h5 class="card-title">{{ plan.name }}</h5>
+                    <div class="price">
+                        <span class="h2">¥{{ plan.price_monthly }}</span>
+                        <span class="text-muted">/月</span>
+                    </div>
+                    <p class="text-muted">或 ¥{{ plan.price_yearly }}/年</p>
+                    
+                    <ul class="list-unstyled mt-3 mb-4">
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success me-2"></i>
+                            {{ plan.max_documents_per_month }} 个文档/月
+                        </li>
+                        <li class="mb-2">
+                            <i class="fas fa-check text-success me-2"></i>
+                            最多 {{ plan.max_words_per_document }} 字/文档
+                        </li>
+                        <li class="mb-2">
+                            {% if plan.supports_charts %}
+                            <i class="fas fa-check text-success me-2"></i>
+                            {% else %}
+                            <i class="fas fa-times text-danger me-2"></i>
+                            {% endif %}
+                            图表生成
+                        </li>
+                        <li class="mb-2">
+                            {% if plan.supports_formulas %}
+                            <i class="fas fa-check text-success me-2"></i>
+                            {% else %}
+                            <i class="fas fa-times text-danger me-2"></i>
+                            {% endif %}
+                            数学公式
+                        </li>
+                        <li class="mb-2">
+                            {% if plan.supports_templates %}
+                            <i class="fas fa-check text-success me-2"></i>
+                            {% else %}
+                            <i class="fas fa-times text-danger me-2"></i>
+                            {% endif %}
+                            专业模板
+                        </li>
+                        <li class="mb-2">
+                            {% if plan.priority_processing %}
+                            <i class="fas fa-check text-success me-2"></i>
+                            {% else %}
+                            <i class="fas fa-times text-danger me-2"></i>
+                            {% endif %}
+                            优先处理
+                        </li>
+                    </ul>
+                </div>
+                <div class="card-footer bg-transparent text-center">
+                    {% if current_subscription and current_subscription.plan.id == plan.id %}
+                    <button class="btn btn-outline-primary w-100" disabled>当前套餐</button>
+                    {% else %}
+                    <button class="btn btn-primary w-100 subscribe-btn" 
+                            data-plan-id="{{ plan.id }}" 
+                            data-plan-name="{{ plan.name }}">
+                        立即订阅
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Payment History Link -->
+    <div class="row mt-4">
+        <div class="col-12 text-center">
+            <a href="{% url 'payment_history' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-history me-2"></i>查看支付记录
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Payment Modal -->
+<div class="modal fade" id="paymentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">确认订阅</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>您即将订阅: <strong id="selectedPlanName"></strong></p>
+                
+                <div class="mb-3">
+                    <label class="form-label">计费周期</label>
+                    <div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="billingCycle" id="monthly" value="monthly" checked>
+                            <label class="form-check-label" for="monthly">
+                                月付 - <span id="monthlyPrice"></span>
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="billingCycle" id="yearly" value="yearly">
+                            <label class="form-check-label" for="yearly">
+                                年付 - <span id="yearlyPrice"></span> (节省 <span id="savings"></span>)
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">支付方式</label>
+                    <div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="paymentMethod" id="wechat" value="wechat" checked>
+                            <label class="form-check-label" for="wechat">
+                                <i class="fab fa-weixin me-2"></i>微信支付
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="paymentMethod" id="alipay" value="alipay">
+                            <label class="form-check-label" for="alipay">
+                                <i class="fab fa-alipay me-2"></i>支付宝
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="confirmPayment">确认支付</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let selectedPlan = null;
+    let planPrices = {};
+    
+    // Store plan prices from template
+    {% for plan in plans %}
+    planPrices[{{ plan.id }}] = {
+        monthly: {{ plan.price_monthly }},
+        yearly: {{ plan.price_yearly }}
+    };
+    {% endfor %}
+    
+    // Subscribe button click
+    document.querySelectorAll('.subscribe-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            selectedPlan = this.getAttribute('data-plan-id');
+            const planName = this.getAttribute('data-plan-name');
+            const prices = planPrices[selectedPlan];
+            
+            // Update modal content
+            document.getElementById('selectedPlanName').textContent = planName;
+            document.getElementById('monthlyPrice').textContent = '¥' + prices.monthly;
+            document.getElementById('yearlyPrice').textContent = '¥' + prices.yearly;
+            
+            // Calculate savings
+            const yearlyCost = prices.monthly * 12;
+            const savings = yearlyCost - prices.yearly;
+            document.getElementById('savings').textContent = '¥' + savings;
+            
+            // Show modal
+            new bootstrap.Modal(document.getElementById('paymentModal')).show();
+        });
+    });
+    
+    // Confirm payment
+    document.getElementById('confirmPayment').addEventListener('click', function() {
+        const billingCycle = document.querySelector('input[name="billingCycle"]:checked').value;
+        const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked').value;
+        
+        // Show loading state
+        const confirmBtn = this;
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<div class="loading me-2"></div>处理中...';
+        
+        // Call API to upgrade subscription
+        fetch('/api/subscriptions/upgrade/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                plan_id: parseInt(selectedPlan),
+                billing_cycle: billingCycle,
+                payment_method: paymentMethod
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.subscription) {
+                // Success - close modal and reload page
+                bootstrap.Modal.getInstance(document.getElementById('paymentModal')).hide();
+                setTimeout(() => {
+                    location.reload();
+                }, 1000);
+            } else {
+                alert('订阅失败: ' + (data.error || '未知错误'));
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = '确认支付';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('订阅失败，请重试');
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = '确认支付';
+        });
+    });
+});
+</script>
+
+<style>
+.pricing-card.featured {
+    transform: scale(1.05);
+    border: 2px solid #ffc107;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.pricing-card:hover {
+    transform: translateY(-5px);
+    transition: transform 0.3s ease;
+}
+
+.price {
+    margin: 20px 0;
+}
+</style>
+{% endblock %}

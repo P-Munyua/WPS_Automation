@@ -1,0 +1,175 @@
+<!-- templates/documents/generate.html -->
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}生成文档 - WPS办公自动化系统{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="fas fa-magic me-2"></i>智能文档生成</h4>
+                </div>
+                <div class="card-body">
+                    <form method="post" action="{% url 'document_generate_submit' %}" id="generateForm">
+                        {% csrf_token %}
+                        
+                        <!-- Topic Input -->
+                        <div class="mb-4">
+                            <label for="topic" class="form-label h5">文档主题</label>
+                            <input type="text" class="form-control form-control-lg" id="topic" name="topic" 
+                                   placeholder="例如：人工智能对现代社会的影响" required>
+                            <div class="form-text">请输入您想要生成的文档主题，越具体越好</div>
+                        </div>
+                        
+                        <!-- Template Selection -->
+                        <div class="mb-4">
+                            <label class="form-label h5">文档模板</label>
+                            <div class="row">
+                                {% for template in templates %}
+                                <div class="col-md-4 mb-3">
+                                    <div class="card template-card">
+                                        <div class="card-body text-center">
+                                            <i class="fas fa-{{ template.template_type|yesno:'file-contract,chart-line' }} fa-2x mb-3 text-primary"></i>
+                                            <h6>{{ template.name }}</h6>
+                                            <p class="text-muted small">{{ template.description }}</p>
+                                            <input type="radio" class="btn-check" name="template_id" 
+                                                   id="template{{ template.id }}" value="{{ template.id }}" 
+                                                   {% if forloop.first %}checked{% endif %}>
+                                            <label class="btn btn-outline-primary btn-sm" for="template{{ template.id }}">
+                                                选择此模板
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        
+                        <!-- Advanced Options -->
+                        <div class="mb-4">
+                            <a class="h5 text-decoration-none" data-bs-toggle="collapse" href="#advancedOptions">
+                                <i class="fas fa-cog me-2"></i>高级选项
+                            </a>
+                            <div class="collapse mt-3" id="advancedOptions">
+                                <div class="card card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <label for="word_count" class="form-label">文档字数</label>
+                                            <input type="number" class="form-control" id="word_count" name="word_count" 
+                                                   value="2000" min="500" max="10000">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="language" class="form-label">文档语言</label>
+                                            <select class="form-select" id="language" name="language">
+                                                <option value="zh" selected>中文</option>
+                                                <option value="en">英文</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="row mt-3">
+                                        <div class="col-md-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="include_charts" name="include_charts" checked>
+                                                <label class="form-check-label" for="include_charts">
+                                                    包含图表
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="include_formulas" name="include_formulas">
+                                                <label class="form-check-label" for="include_formulas">
+                                                    包含数学公式
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Submit Button -->
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg" id="generateBtn">
+                                <i class="fas fa-bolt me-2"></i>开始生成文档
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('generateForm');
+    const generateBtn = document.getElementById('generateBtn');
+    
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Show loading state
+        generateBtn.disabled = true;
+        generateBtn.innerHTML = '<div class="loading me-2"></div>生成中...';
+        
+        // Submit form via AJAX
+        fetch('{% url "document_generate_submit" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                topic: document.getElementById('topic').value,
+                template_id: document.querySelector('input[name="template_id"]:checked').value,
+                word_count: parseInt(document.getElementById('word_count').value),
+                language: document.getElementById('language').value,
+                include_charts: document.getElementById('include_charts').checked,
+                include_formulas: document.getElementById('include_formulas').checked
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.task && data.task.id) {
+                // Redirect to task detail page
+                window.location.href = '{% url "document_detail" 0 %}'.replace('0', data.task.id);
+            } else {
+                alert('生成失败: ' + (data.error || '未知错误'));
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = '<i class="fas fa-bolt me-2"></i>开始生成文档';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('生成失败，请重试');
+            generateBtn.disabled = false;
+            generateBtn.innerHTML = '<i class="fas fa-bolt me-2"></i>开始生成文档';
+        });
+    });
+});
+</script>
+
+<style>
+.template-card {
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.template-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+}
+
+.btn-check:checked + .btn {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+</style>
+{% endblock %}

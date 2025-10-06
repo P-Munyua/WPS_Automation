@@ -17,4 +17,10 @@ urlpatterns = [
     # User profile
     path('profile/', views.get_user_profile, name='profile'),
     path('profile/update/', views.update_user_profile, name='update_profile'),
+    
+    # Dashboard
+    path('dashboard/', views.user_dashboard, name='user_dashboard'),
+    path('analytics/', views.user_analytics, name='user_analytics'),
+    path('system-analytics/', views.system_analytics, name='system_analytics'),
+    
 ]

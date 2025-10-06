@@ -1,0 +1,10 @@
+<!-- templates/admin/base_site.html -->
+{% extends "admin/base.html" %}
+
+{% block title %}{{ title }} | WPS办公自动化系统{% endblock %}
+
+{% block branding %}
+<h1 id="site-name"><a href="{% url 'admin:index' %}">WPS办公自动化系统管理</a></h1>
+{% endblock %}
+
+{% block nav-global %}{% endblock %}

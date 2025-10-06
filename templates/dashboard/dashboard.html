@@ -1,0 +1,180 @@
+<!-- templates/dashboard/dashboard.html -->
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}首页 - WPS办公自动化系统{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Welcome Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card bg-light">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h2 class="card-title">欢迎回来，{{ user.email|default:user.phone_number }}！</h2>
+                            <p class="card-text">今天想生成什么类型的文档？让我们开始吧！</p>
+                            <a href="{% url 'document_generate' %}" class="btn btn-primary btn-lg">
+                                <i class="fas fa-plus me-2"></i>开始生成文档
+                            </a>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <i class="fas fa-robot display-1 text-primary"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <div class="stat-number">{{ total_docs }}</div>
+                    <div class="stat-label">总生成文档</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <div class="stat-number">{{ completed_docs }}</div>
+                    <div class="stat-label">成功生成</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <div class="stat-number">
+                        {% if subscription %}
+                            {{ subscription.plan.max_documents_per_month }}
+                        {% else %}
+                            5
+                        {% endif %}
+                    </div>
+                    <div class="stat-label">每月额度</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <div class="stat-number">
+                        {% if subscription %}
+                            {{ subscription.documents_used_this_month }}
+                        {% else %}
+                            0
+                        {% endif %}
+                    </div>
+                    <div class="stat-label">本月已用</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Subscription Status -->
+    {% if subscription %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-crown me-2"></i>订阅状态
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>{{ subscription.plan.name }}</h6>
+                            <p class="text-muted">{{ subscription.plan.description }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="progress mb-2">
+                                <div class="progress-bar" role="progressbar" 
+                                     style="width: {{ subscription.documents_used_this_month|divisibleby:subscription.plan.max_documents_per_month|default:1|multiply:100 }}%">
+                                </div>
+                            </div>
+                            <small>
+                                已使用 {{ subscription.documents_used_this_month }} / {{ subscription.plan.max_documents_per_month }} 个文档
+                            </small>
+                            {% if subscription.documents_used_this_month >= subscription.plan.max_documents_per_month %}
+                            <div class="alert alert-warning mt-2 mb-0">
+                                <small>本月额度已用完，<a href="{% url 'subscription' %}">升级套餐</a>获得更多额度</small>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Recent Documents -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-history me-2"></i>最近文档
+                    </h5>
+                    <a href="{% url 'document_list' %}" class="btn btn-sm btn-outline-primary">查看全部</a>
+                </div>
+                <div class="card-body">
+                    {% if recent_documents %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>主题</th>
+                                    <th>状态</th>
+                                    <th>字数</th>
+                                    <th>创建时间</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for doc in recent_documents %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ doc.topic|truncatewords:8 }}</strong>
+                                    </td>
+                                    <td>
+                                        <span class="document-status status-{{ doc.status }}">
+                                            {{ doc.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td>{{ doc.word_count }}</td>
+                                    <td>{{ doc.created_at|date:"Y-m-d H:i" }}</td>
+                                    <td>
+                                        {% if doc.status == 'completed' and doc.generated_file %}
+                                        <a href="{% url 'document_download' doc.id %}" class="btn btn-sm btn-success">
+                                            <i class="fas fa-download"></i>
+                                        </a>
+                                        {% endif %}
+                                        <a href="{% url 'document_detail' doc.id %}" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-file-alt display-1 text-muted mb-3"></i>
+                        <p class="text-muted">还没有生成过文档</p>
+                        <a href="{% url 'document_generate' %}" class="btn btn-primary">开始第一个文档</a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

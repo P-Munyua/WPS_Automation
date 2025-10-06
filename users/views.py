@@ -236,3 +236,257 @@ def verify_sms_code(request):
         'access': str(refresh.access_token),
         'message': message
     })
+
+
+
+
+# users/views.py - Add these imports
+from documents.models import DocumentGenerationTask
+from subscriptions.models import UserSubscription
+from django.db.models import Count, Q
+from django.utils import timezone
+from datetime import timedelta
+
+# Add these new views
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def user_dashboard(request):
+    """Get user dashboard data"""
+    user = request.user
+    
+    # Get subscription info
+    try:
+        subscription = UserSubscription.objects.get(user=user)
+        subscription_data = UserSubscriptionSerializer(subscription).data
+    except UserSubscription.DoesNotExist:
+        subscription_data = None
+    
+    # Get document statistics
+    total_documents = DocumentGenerationTask.objects.filter(user=user).count()
+    completed_documents = DocumentGenerationTask.objects.filter(
+        user=user, 
+        status=DocumentGenerationTask.COMPLETED
+    ).count()
+    
+    # Recent documents (last 7 days)
+    seven_days_ago = timezone.now() - timedelta(days=7)
+    recent_documents = DocumentGenerationTask.objects.filter(
+        user=user,
+        created_at__gte=seven_days_ago
+    ).count()
+    
+    # Document status breakdown
+    status_breakdown = DocumentGenerationTask.objects.filter(user=user).values(
+        'status'
+    ).annotate(count=Count('id'))
+    
+    # Monthly usage
+    current_month_start = timezone.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    monthly_documents = DocumentGenerationTask.objects.filter(
+        user=user,
+        created_at__gte=current_month_start
+    ).count()
+    
+    # Recent activity (last 5 tasks)
+    recent_tasks = DocumentGenerationTask.objects.filter(
+        user=user
+    ).order_by('-created_at')[:5]
+    
+    from documents.serializers import DocumentGenerationTaskSerializer
+    recent_tasks_data = DocumentGenerationTaskSerializer(recent_tasks, many=True).data
+    
+    return Response({
+        'user': UserSerializer(user).data,
+        'subscription': subscription_data,
+        'statistics': {
+            'total_documents': total_documents,
+            'completed_documents': completed_documents,
+            'recent_documents': recent_documents,
+            'monthly_documents': monthly_documents,
+            'status_breakdown': status_breakdown,
+        },
+        'recent_activity': recent_tasks_data,
+        'limits': {
+            'max_documents': subscription.plan.max_documents_per_month if subscription else 5,
+            'documents_used': subscription.documents_used_this_month if subscription else 0,
+            'remaining_documents': (
+                subscription.plan.max_documents_per_month - subscription.documents_used_this_month 
+                if subscription else 5
+            ),
+        } if subscription else None
+    })
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def user_analytics(request):
+    """Get user analytics data"""
+    user = request.user
+    
+    # Daily document count for the last 30 days
+    thirty_days_ago = timezone.now() - timedelta(days=30)
+    
+    daily_stats = DocumentGenerationTask.objects.filter(
+        user=user,
+        created_at__gte=thirty_days_ago
+    ).extra({
+        'date': "DATE(created_at)"
+    }).values('date').annotate(
+        count=Count('id')
+    ).order_by('date')
+    
+    # Word count statistics
+    word_stats = DocumentGenerationTask.objects.filter(
+        user=user,
+        status=DocumentGenerationTask.COMPLETED
+    ).aggregate(
+        total_words=Count('word_count'),
+        avg_words=models.Avg('word_count'),
+        max_words=models.Max('word_count')
+    )
+    
+    # Most common topics (simplified)
+    common_topics = DocumentGenerationTask.objects.filter(
+        user=user
+    ).values('topic').annotate(
+        count=Count('id')
+    ).order_by('-count')[:10]
+    
+    return Response({
+        'daily_activity': list(daily_stats),
+        'word_statistics': word_stats,
+        'common_topics': list(common_topics),
+        'time_period': 'last_30_days'
+    })
+
+
+# Create new app for analytics or add to existing views
+# Let's create it in users/views.py for now
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def system_analytics(request):
+    """Get system-wide analytics (admin only)"""
+    if not request.user.is_staff:
+        return Response({"error": "Permission denied"}, 
+                       status=status.HTTP_403_FORBIDDEN)
+    
+    # User growth (last 30 days)
+    thirty_days_ago = timezone.now() - timedelta(days=30)
+    user_growth = User.objects.filter(
+        date_joined__gte=thirty_days_ago
+    ).extra({
+        'date': "DATE(date_joined)"
+    }).values('date').annotate(
+        count=Count('id')
+    ).order_by('date')
+    
+    # Document generation trends
+    doc_trends = DocumentGenerationTask.objects.filter(
+        created_at__gte=thirty_days_ago
+    ).extra({
+        'date': "DATE(created_at)"
+    }).values('date').annotate(
+        total=Count('id'),
+        completed=Count('id', filter=Q(status='completed')),
+        failed=Count('id', filter=Q(status='failed'))
+    ).order_by('date')
+    
+    # Subscription distribution
+    subscription_dist = UserSubscription.objects.values(
+        'plan__name'
+    ).annotate(
+        count=Count('id')
+    ).order_by('-count')
+    
+    # Popular topics
+    popular_topics = DocumentGenerationTask.objects.values(
+        'topic'
+    ).annotate(
+        count=Count('id')
+    ).order_by('-count')[:10]
+    
+    return Response({
+        'user_growth': list(user_growth),
+        'document_trends': list(doc_trends),
+        'subscription_distribution': list(subscription_dist),
+        'popular_topics': list(popular_topics),
+        'time_period': 'last_30_days'
+    })
+
+
+
+
+# users/views.py - Add template-based views
+from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+
+@login_required
+def dashboard(request):
+    """User dashboard template view"""
+    # Get user data for dashboard
+    from documents.models import DocumentGenerationTask
+    from subscriptions.models import UserSubscription
+    
+    # Recent documents
+    recent_documents = DocumentGenerationTask.objects.filter(
+        user=request.user
+    ).order_by('-created_at')[:5]
+    
+    # Subscription info
+    try:
+        subscription = UserSubscription.objects.get(user=request.user)
+    except UserSubscription.DoesNotExist:
+        subscription = None
+    
+    # Statistics
+    total_docs = DocumentGenerationTask.objects.filter(user=request.user).count()
+    completed_docs = DocumentGenerationTask.objects.filter(
+        user=request.user, 
+        status=DocumentGenerationTask.COMPLETED
+    ).count()
+    
+    context = {
+        'recent_documents': recent_documents,
+        'subscription': subscription,
+        'total_docs': total_docs,
+        'completed_docs': completed_docs,
+    }
+    
+    return render(request, 'dashboard/dashboard.html', context)
+
+
+# users/views.py - Add profile view
+@login_required
+def profile_view(request):
+    """User profile page"""
+    if request.method == 'POST':
+        # Handle profile update
+        user = request.user
+        user.email = request.POST.get('email', user.email)
+        user.phone_number = request.POST.get('phone_number', user.phone_number)
+        user.country_code = request.POST.get('country_code', user.country_code)
+        user.save()
+        
+        # Update profile
+        profile, created = UserProfile.objects.get_or_create(user=user)
+        profile.company = request.POST.get('company', '')
+        profile.position = request.POST.get('position', '')
+        profile.save()
+        
+        messages.success(request, '个人资料更新成功！')
+        return redirect('profile')
+    
+    context = {
+        'user': request.user
+    }
+    return render(request, 'auth/profile.html', context)
+
+@login_required
+def logout_view(request):
+    """Logout user"""
+    from django.contrib.auth import logout
+    logout(request)
+    messages.success(request, '您已成功退出登录')
+    return redirect('login')

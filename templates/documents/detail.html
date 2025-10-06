@@ -1,0 +1,208 @@
+<!-- templates/documents/detail.html -->
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}文档详情 - WPS办公自动化系统{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <!-- Back Button -->
+            <div class="mb-3">
+                <a href="{% url 'document_list' %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>返回文档列表
+                </a>
+            </div>
+
+            <!-- Document Header -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0"><i class="fas fa-file-alt me-2"></i>文档详情</h4>
+                    <span class="document-status status-{{ document.status }}">
+                        {% if document.status == 'pending' %}
+                        <i class="fas fa-clock me-1"></i>
+                        {% elif document.status == 'processing' %}
+                        <i class="fas fa-sync-alt me-1 fa-spin"></i>
+                        {% elif document.status == 'completed' %}
+                        <i class="fas fa-check me-1"></i>
+                        {% elif document.status == 'failed' %}
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        {% endif %}
+                        {{ document.get_status_display }}
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h5 class="card-title">{{ document.topic }}</h5>
+                            <p class="text-muted">创建时间: {{ document.created_at|date:"Y-m-d H:i" }}</p>
+                            {% if document.completed_at %}
+                            <p class="text-muted">完成时间: {{ document.completed_at|date:"Y-m-d H:i" }}</p>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4 text-end">
+                            {% if document.status == 'completed' and document.generated_file %}
+                            <a href="{% url 'document_download' document.id %}" class="btn btn-success btn-lg">
+                                <i class="fas fa-download me-2"></i>下载文档
+                            </a>
+                            {% elif document.status == 'failed' %}
+                            <button class="btn btn-warning btn-lg" id="retryBtn">
+                                <i class="fas fa-redo me-2"></i>重新生成
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    {% if document.status == 'failed' and document.error_message %}
+                    <div class="alert alert-danger mt-3">
+                        <h6><i class="fas fa-exclamation-triangle me-2"></i>生成失败</h6>
+                        <p class="mb-0">{{ document.error_message }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Document Statistics -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <div class="stat-number">{{ document.word_count }}</div>
+                            <div class="stat-label">总字数</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <div class="stat-number">{{ document.charts_count }}</div>
+                            <div class="stat-label">图表数量</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <div class="stat-number">{{ document.formulas_count }}</div>
+                            <div class="stat-label">公式数量</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <div class="stat-number">
+                                {% if document.completed_at and document.created_at %}
+                                {{ document.completed_at|timesince:document.created_at }}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </div>
+                            <div class="stat-label">处理时长</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Requirements -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-cog me-2"></i>生成要求</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-sm">
+                                <tr>
+                                    <th width="40%">文档类型:</th>
+                                    <td>{{ document.requirements.template_type|default:"学术论文" }}</td>
+                                </tr>
+                                <tr>
+                                    <th>目标字数:</th>
+                                    <td>{{ document.requirements.word_count|default:2000 }} 字</td>
+                                </tr>
+                                <tr>
+                                    <th>语言:</th>
+                                    <td>{{ document.requirements.language|default:"zh"|yesno:"中文,英文" }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <table class="table table-sm">
+                                <tr>
+                                    <th width="40%">包含图表:</th>
+                                    <td>
+                                        {% if document.requirements.include_charts %}
+                                        <i class="fas fa-check text-success"></i>
+                                        {% else %}
+                                        <i class="fas fa-times text-danger"></i>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>包含公式:</th>
+                                    <td>
+                                        {% if document.requirements.include_formulas %}
+                                        <i class="fas fa-check text-success"></i>
+                                        {% else %}
+                                        <i class="fas fa-times text-danger"></i>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Real-time Progress (for processing documents) -->
+            {% if document.status == 'processing' %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-sync-alt me-2 fa-spin"></i>正在生成中...</h5>
+                </div>
+                <div class="card-body">
+                    <div class="progress mb-3">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" style="width: 75%"></div>
+                    </div>
+                    <p class="text-muted mb-0">系统正在为您生成文档，请耐心等待...</p>
+                </div>
+            </div>
+            
+            <!-- Auto-refresh script -->
+            <script>
+            // Auto-refresh every 5 seconds for processing documents
+            setTimeout(function() {
+                location.reload();
+            }, 5000);
+            </script>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Retry functionality for failed documents
+    const retryBtn = document.getElementById('retryBtn');
+    if (retryBtn) {
+        retryBtn.addEventListener('click', function() {
+            if (confirm('确定要重新生成这个文档吗？')) {
+                retryBtn.disabled = true;
+                retryBtn.innerHTML = '<div class="loading me-2"></div>重新生成中...';
+                
+                // In a real implementation, you would call an API to retry the task
+                // For now, just reload the page
+                setTimeout(() => {
+                    location.reload();
+                }, 2000);
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

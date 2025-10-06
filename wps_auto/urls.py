@@ -9,6 +9,9 @@ urlpatterns = [
     path('api/auth/', include('users.urls')),
     path('api/documents/', include('documents.urls')),
     path('api/subscriptions/', include('subscriptions.urls')),
+    path('', include('users.urls_frontend')),
+    path('documents/', include('documents.urls_frontend')),
+    path('subscriptions/', include('subscriptions.urls_frontend')),
 ]
 
 # Serve media files in development

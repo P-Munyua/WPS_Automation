@@ -1,0 +1,113 @@
+<!-- templates/admin/index.html -->
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block content %}
+<div id="content-main">
+    <div class="module">
+        <h2>系统概览</h2>
+        
+        <div class="dashboard-stats">
+            <div class="stat-card">
+                <h3>用户统计</h3>
+                <div class="stat-number">{{ total_users }}</div>
+                <div class="stat-detail">总用户数</div>
+                <div class="stat-detail">今日新增: {{ new_users_today }}</div>
+                <div class="stat-detail">月活跃: {{ active_users }}</div>
+            </div>
+            
+            <div class="stat-card">
+                <h3>文档生成</h3>
+                <div class="stat-number">{{ total_documents }}</div>
+                <div class="stat-detail">总生成数</div>
+                <div class="stat-detail">成功: {{ completed_documents }}</div>
+                <div class="stat-detail">成功率: {{ success_rate|floatformat:1 }}%</div>
+            </div>
+            
+            <div class="stat-card">
+                <h3>订阅情况</h3>
+                <div class="stat-number">{{ total_subscriptions }}</div>
+                <div class="stat-detail">总订阅数</div>
+                <div class="stat-detail">活跃订阅: {{ active_subscriptions }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="module">
+        <h2>最近活动</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>用户</th>
+                    <th>主题</th>
+                    <th>状态</th>
+                    <th>创建时间</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for task in recent_tasks %}
+                <tr>
+                    <td>{{ task.user.email|default:task.user.phone_number }}</td>
+                    <td>{{ task.topic|truncatewords:10 }}</td>
+                    <td>
+                        <span style="
+                            background-color: 
+                            {% if task.status == 'completed' %}green
+                            {% elif task.status == 'failed' %}red
+                            {% elif task.status == 'processing' %}blue
+                            {% else %}gray{% endif %};
+                            color: white; 
+                            padding: 2px 8px; 
+                            border-radius: 10px;
+                        ">
+                            {{ task.get_status_display }}
+                        </span>
+                    </td>
+                    <td>{{ task.created_at|date:"Y-m-d H:i" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4">暂无活动</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% include "admin/app_list.html" with app_list=app_list show_changelinks=True %}
+</div>
+
+<style>
+.dashboard-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.stat-card {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+}
+
+.stat-card h3 {
+    margin-top: 0;
+    color: #495057;
+}
+
+.stat-number {
+    font-size: 2.5em;
+    font-weight: bold;
+    color: #007bff;
+    margin: 10px 0;
+}
+
+.stat-detail {
+    color: #6c757d;
+    font-size: 0.9em;
+}
+</style>
+{% endblock %}
